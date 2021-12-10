@@ -26,26 +26,32 @@ def read_json_file(data_file):
 
 def read_csv_file(data_file):
     rows = []  # nit: consider very big file with bilions of participants (for later)
-    reader = csv.reader(data_file)
-    next(reader)
+    reader = csv.DictReader(data_file)
     for row in reader:
-        rows.append(row)  # how do we know it is the same order as in JSON?
+        rows.append([row.get('id'),
+                     row.get('first_name'),
+                     row.get('last_name'),
+                     row.get('weight') or "1"])
     return rows
 
 
-def get_winners_with_weight(list_of_users, count):
-    user_weights = []
-    for i, user in enumerate(list_of_users):
-        user_weights.append(int(user[3]))
-    return random.choices(list_of_users, weights=user_weights, k=int(count))
+def get_winner_and_reduce_his_chances(list_of_users):
+    winner = random.choices(list_of_users, weights=user_weights, k=1)
+    reduce_winner_chances(winner)
+    return winner
 
 
-def get_winners(list_of_users, count):
-    return random.choices(list_of_users, k=int(count))
+def reduce_winner_chances(winner):
+    winner_id = int(winner[0][0])
+    user_weights[winner_id-1] -= 1
 
 
 def show_winners(list_of_participants):
-    winners = get_winners_with_weight(list_of_participants, winners_count)
+    for i, user in enumerate(list_of_participants):
+        user_weights.append(int(user[3]))
+    winners = []
+    for i in range(int(winners_count)):
+        winners.append(get_winner_and_reduce_his_chances(list_of_participants))
     print("--- winners ---")
     for winner in winners:
         print(winner)
@@ -58,6 +64,7 @@ if __name__ == '__main__':
     parser.add_argument("--json", help="Provide json file path to process")
     args = parser.parse_args()
 
+    user_weights = []
     winners_count = input("How many winners?")
 
     if args.csv is not None:
