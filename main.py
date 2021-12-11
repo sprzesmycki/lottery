@@ -1,75 +1,103 @@
 import csv
 import json
+import pathlib
 import random
-import argparse
+from dataclasses import dataclass
+
+import click
+
+
+@dataclass
+class Participant:
+    id: int
+    first_name: str
+    last_name: str
+    weight: int
 
 
 def read_file(file_path, file_type):
     with open(file_path) as data_file:
         if file_type == "csv":
-            rows = read_csv_file(data_file)
+            yield from read_csv_file(data_file)
         elif file_type == "json":
-            rows = read_json_file(data_file)
-    return rows
+            yield from read_json_file(data_file)
 
 
 def read_json_file(data_file):
-    rows = []  # nit: consider very big file with bilions of participants (for later)
     reader = json.load(data_file)
-    for row in reader:
-        rows.append([row.get('id'),
-                     row.get('first_name'),
-                     row.get('last_name'),
-                     row.get('weight') or "1"])
-    return rows
+    yield from iterate_participants(reader)
 
 
 def read_csv_file(data_file):
-    rows = []  # nit: consider very big file with bilions of participants (for later)
     reader = csv.DictReader(data_file)
+    yield from iterate_participants(reader)
+
+
+def iterate_participants(reader):
     for row in reader:
-        rows.append([row.get('id'),
-                     row.get('first_name'),
-                     row.get('last_name'),
-                     row.get('weight') or "1"])
-    return rows
+        weight = row.get('weight')
+        if weight is None:
+            weight = 1
+        else:
+            weight = int(weight)
+        yield Participant(int(row.get('id')),
+                          row.get('first_name'),
+                          row.get('last_name'),
+                          weight)
 
 
-def get_winner_and_reduce_his_chances(list_of_users):
-    winner = random.choices(list_of_users, weights=user_weights, k=1)
-    reduce_winner_chances(winner)
-    return winner
+def get_winner(list_of_users):
+    list_of_weights = list(map(lambda user: user.weight, list_of_users))
+    print(list_of_weights)
+    return random.choices(list_of_users, weights=list_of_weights, k=1)[0]
 
 
 def reduce_winner_chances(winner):
-    winner_id = int(winner[0][0])
-    user_weights[winner_id-1] -= 1
+    winner.weight -= 1
 
 
-def show_winners(list_of_participants):
-    for i, user in enumerate(list_of_participants):
-        user_weights.append(int(user[3]))
-    winners = []
-    for i in range(int(winners_count)):
-        winners.append(get_winner_and_reduce_his_chances(list_of_participants))
+def show_winners(list_of_winners):
     print("--- winners ---")
-    for winner in winners:
+    for winner in list_of_winners:
         print(winner)
 
 
+def get_extension(file):
+    return pathlib.Path(file).suffix[1:]
+
+
+def get_list_of_participants(participants):
+    list_of_participants = []
+    it = iter(participants)
+    while True:
+        try:
+            list_of_participants.append(next(it))
+        except StopIteration:
+            break
+    return list_of_participants
+
+
+@click.command()
+@click.option('--file', help='Provide file path to process')
+@click.option('--filetype', help='Provide file type csv/json')
+@click.option('--count', prompt='Winners count:', default=1, help='Provide winners count')
+def lottery(file, filetype, count):
+    participants = []
+    if file is not None:
+        filetype = filetype or get_extension(file)
+        participants = read_file(file, filetype)
+    else:
+        print('Please specify the file')
+    participants = get_list_of_participants(participants)
+
+    winners = []
+    for i in range(count):
+        winner = get_winner(participants)
+        winners.append(winner)
+        reduce_winner_chances(winner)
+
+    show_winners(winners)
+
+
 if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--csv", help="Provide csv file path to process")
-    parser.add_argument("--json", help="Provide json file path to process")
-    args = parser.parse_args()
-
-    user_weights = []
-    winners_count = input("How many winners?")
-
-    if args.csv is not None:
-        list_of_users_from_csv = read_file(args.csv, 'csv')
-        show_winners(list_of_users_from_csv)
-    if args.json is not None:
-        list_of_users_from_json = read_file(args.json, 'json')
-        show_winners(list_of_users_from_json)
+    lottery()
