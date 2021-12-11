@@ -48,7 +48,6 @@ def iterate_participants(reader):
 
 def get_winner(list_of_users):
     list_of_weights = list(map(lambda user: user.weight, list_of_users))
-    print(list_of_weights)
     return random.choices(list_of_users, weights=list_of_weights, k=1)[0]
 
 
@@ -87,7 +86,8 @@ def lottery(file, filetype, count):
         filetype = filetype or get_extension(file)
         participants = read_file(file, filetype)
     else:
-        print('Please specify the file')
+        print('-- File not specified --')
+        exit()
     participants = get_list_of_participants(participants)
 
     winners = []
