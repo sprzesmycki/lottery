@@ -55,17 +55,15 @@ class Prizes:
 
 @dataclass_json
 @dataclass
-class Winner:
-    participant: Participant
-    prize: Prize
-
-
-@dataclass_json
-@dataclass
 class Winners:
-    winners: List[Winner]
+    winners: List[Participant]
 
-    def print_winners(self):
+    def __iter__(self):
+        for participant in self.winners:
+            for _ in range(participant.amount):
+                yield participant
+
+    def __str__(self):  # TODO not sure if this shouldn't be moved to lottery class??
         print('Winners of lottery: ')
         for winner in self.winners:
             print(f'-> {winner.participant.first_name} {winner.participant.last_name} won {winner.prize.name}')
@@ -77,7 +75,21 @@ class Winners:
 class Lottery:
     participants: List[Participant]
     prizes: List[Prizes]
-    winners: List[Winner]
+    winners: List[Participant]
+
+    def get_winners(self):
+        for i in range(self.prizes.total_count):
+            winner = self.get_winner()
+            self.winners.append(winner)
+            winner.reduce_win_change()
+        return self.winners
+
+    def get_winners_with_prizes(self):  # TODO verify if this works
+        yield zip(self.participants, self.prizes)
+
+    def get_winner(self):
+        list_of_weights = list(map(attrgetter('weight'), self.participants))
+        return random.choices(self.participants, weights=list_of_weights, k=1)[0]
 
 
 OPENERS = {
@@ -92,7 +104,7 @@ def read_file(file_path, file_type):
         yield from opener(data_file)
 
 
-def iterate_participants(reader):
+def iterate_participants(reader):  # TODO move it somehow to participant class
     for row in reader:
         idk = int(row.get('id'))
         first_name = row.get('first_name')
@@ -101,22 +113,8 @@ def iterate_participants(reader):
         yield Participant(idk, first_name, last_name, weight)
 
 
-def get_winner(list_of_users):
-    list_of_weights = list(map(attrgetter('weight'), list_of_users))
-    return random.choices(list_of_users, weights=list_of_weights, k=1)[0]
-
-
 def get_extension(file):
     return Path(file).suffix[1:]
-
-
-def get_winners_with_prizes(winners, prizes: Prizes):
-    list_of_winners_with_prizes = []
-    iter__ = prizes.__iter__()
-    for winner in winners:
-        list_of_winners_with_prizes.append(
-            Winner(participant=winner, prize=next(iter__)))
-    return Winners(winners=list_of_winners_with_prizes)
 
 
 def get_first_file_in_path(path):
@@ -155,27 +153,21 @@ def lottery(file, filetype, rewards, results):
     rows = read_file(file, filetype)
     participants = list(iterate_participants(rows))
 
-    prizes = read_file(rewards, 'json')
-    for prize in prizes:
-        print("")
-    rewards = Prizes.from_json(json.dumps(prizes))
+    prizes = read_file(rewards, 'json')  # TODO saves results as dict - not sure how to convert this to json
+    # rewards = Prizes.from_json(json.dumps(prizes)) TODO not working due to above ^ - worked when prizes were a full json
 
-    winners = []
-    for i in range(rewards.total_count):
-        winner = get_winner(participants)
-        winners.append(winner)
-        winner.reduce_win_change()
+    # winners = get_winners(participants, rewards)
 
-    lottery_data = Lottery(participants=participants, prizes=prizes, winners=winners)
-    lottery_json = Lottery.to_json(lottery_data)
-    print(lottery_json)
-    winners_with_prizes = get_winners_with_prizes(winners, rewards)
+    # lottery_data = Lottery(participants=participants, prizes=prizes, winners=winners) TODO probably not needed due to all functions are within this class
+    # lottery_json = Lottery.to_json(lottery_data)
+    # print(lottery_json)
+    # winners_with_prizes = get_winners_with_prizes(winners, rewards)
 
-    if results is None:
-        winners_with_prizes.print_winners()
-    else:
-        with open(results, 'w') as f:
-            f.write(Winners.to_json(winners_with_prizes))
+    # if results is None: # TODO move this to separate classes
+    #     winners_with_prizes.print_winners()
+    # else:
+    #     with open(results, 'w') as f:
+    #         f.write(Winners.to_json(winners_with_prizes))
 
 
 if __name__ == '__main__':
