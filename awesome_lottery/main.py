@@ -53,6 +53,10 @@ class Prizes:
                 yield prize
 
 
+# revert winner with prize
+# add getting winners with prizes in one method
+# get winners -> get participant, reduce his chance, dodac do listy zwyciezcow
+
 @dataclass_json
 @dataclass
 class Winners:
@@ -80,37 +84,53 @@ class Lottery:
     def get_winners(self):
         for i in range(self.prizes.total_count):
             winner = self.get_winner()
-            self.winners.append(winner)
-            winner.reduce_win_change()
+            self.winners.append(winner)  # move to get winner
+            winner.reduce_win_change()  # also
         return self.winners
-
-    def get_winners_with_prizes(self):  # TODO verify if this works
-        yield zip(self.participants, self.prizes)
 
     def get_winner(self):
         list_of_weights = list(map(attrgetter('weight'), self.participants))
         return random.choices(self.participants, weights=list_of_weights, k=1)[0]
 
 
+def load_lottery(file_object):
+    x = json.load(file_object)
+    yield x
+    # for z in x["prizes"]:
+    #     yield {"name": x["name"], **z}
+
+
 OPENERS = {
-    "csv": csv.DictReader,
-    "json": json.load,
+    "participant_csv": csv.DictReader,
+    "participant_json": json.load,
+    "prize_json": load_lottery,
 }
 
 
-def read_file(file_path, file_type):
+def adapter_short(x):
+    return Prizes(name=x["name"], prizes=[Prize(**z) for z in x["prizes"]])
+
+
+def prizes_factory(x):  # todo move to prizes
+    prizes = []
+    for z in x["prizes"]:
+        prizes.append(Prize(**z))
+    return Prizes(name=x["name"], prizes=prizes)
+
+
+def read_file(file_path, file_type, adapter):
     opener = OPENERS[file_type]
     with open(file_path) as data_file:
-        yield from opener(data_file)
+        for x in opener(data_file):
+            yield adapter(x)
 
 
-def iterate_participants(reader):  # TODO move it somehow to participant class
-    for row in reader:
-        idk = int(row.get('id'))
-        first_name = row.get('first_name')
-        last_name = row.get('last_name')
-        weight = int(row.get('weight') or 1)
-        yield Participant(idk, first_name, last_name, weight)
+def participants_factory(row):  # TODO move it to participants
+    idk = int(row.get('id'))
+    first_name = row.get('first_name')
+    last_name = row.get('last_name')
+    weight = int(row.get('weight') or 1)
+    return Participant(idk, first_name, last_name, weight)
 
 
 def get_extension(file):
@@ -122,17 +142,13 @@ def get_first_file_in_path(path):
 
 
 def validate_file(ctx, param, value):
-    if isinstance(value, tuple):
+    if value:
         return value
-
-    try:
-        return value
-    except ValueError:
-        raise click.BadParameter('-- File not specified --')
+    raise click.BadParameter('-- File not specified --')
 
 
 def validate_rewards(ctx, param, value):
-    if isinstance(value, tuple):
+    if value:
         return value
 
     try:
@@ -150,11 +166,12 @@ def validate_rewards(ctx, param, value):
 @click.option('--results', help='Provide filename to save results')
 def lottery(file, filetype, rewards, results):
     filetype = filetype or get_extension(file)
-    rows = read_file(file, filetype)
-    participants = list(iterate_participants(rows))
+    rows = read_file(file, 'participant_' + filetype, participants_factory)
+    participants = list(rows)
 
-    prizes = read_file(rewards, 'json')  # TODO saves results as dict - not sure how to convert this to json
-    # rewards = Prizes.from_json(json.dumps(prizes)) TODO not working due to above ^ - worked when prizes were a full json
+    prizes = read_file(rewards, 'prize_json', prizes_factory)
+    prizes = list(prizes)
+    pass
 
     # winners = get_winners(participants, rewards)
 
