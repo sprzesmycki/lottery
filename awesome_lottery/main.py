@@ -2,8 +2,7 @@ import csv
 import json
 from pathlib import Path
 import random
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 from operator import attrgetter
 
@@ -23,6 +22,14 @@ class Participant:
             0
         )
 
+    @staticmethod
+    def factory(row):
+        idk = int(row.get('id'))
+        first_name = row.get('first_name')
+        last_name = row.get('last_name')
+        weight = int(row.get('weight') or 1)
+        return Participant(idk, first_name, last_name, weight)
+
 
 @dataclass_json
 @dataclass
@@ -36,7 +43,7 @@ class Prize:
 @dataclass
 class Prizes:
     name: str
-    prizes: List[Prize]
+    prizes: list[Prize]
 
     @property
     def total_count(self) -> int:
@@ -52,93 +59,87 @@ class Prizes:
             for _ in range(prize.amount):
                 yield prize
 
+    @staticmethod
+    def factory(x):
+        prizes = []
+        for z in x["prizes"]:
+            prizes.append(Prize(**z))
+        return Prizes(name=x["name"], prizes=prizes)
 
-# revert winner with prize
-# add getting winners with prizes in one method
-# get winners -> get participant, reduce his chance, dodac do listy zwyciezcow
 
-@dataclass_json
 @dataclass
-class Winners:
-    winners: List[Participant]
+class Winner:
+    winner: Participant
+    prize: Prize
 
-    def __iter__(self):
-        for participant in self.winners:
-            for _ in range(participant.amount):
-                yield participant
-
-    def __str__(self):  # TODO not sure if this shouldn't be moved to lottery class??
-        print('Winners of lottery: ')
-        for winner in self.winners:
-            print(f'-> {winner.participant.first_name} {winner.participant.last_name} won {winner.prize.name}')
-        print('Congratulations for winners!')
+    def __str__(self):
+        return f'-> {self.winner.first_name} {self.winner.last_name} won {self.prize.name}'
 
 
 @dataclass_json
 @dataclass
 class Lottery:
-    participants: List[Participant]
-    prizes: List[Prizes]
-    winners: List[Participant]
+    participants: list[Participant]
+    prizes: Prizes
+    winners: list[Winner] = field(default_factory=list)
 
-    def get_winners(self):
-        for i in range(self.prizes.total_count):
-            winner = self.get_winner()
-            self.winners.append(winner)  # move to get winner
-            winner.reduce_win_change()  # also
+    def get_winners_with_prizes(self):
+        for prize in self.prizes:
+            self.winners.append(Winner(self.get_winner(), prize))
         return self.winners
 
     def get_winner(self):
         list_of_weights = list(map(attrgetter('weight'), self.participants))
-        return random.choices(self.participants, weights=list_of_weights, k=1)[0]
+        winner = random.choices(self.participants, weights=list_of_weights, k=1)[0]
+        winner.reduce_win_change()
+        return winner
+
+    def print_winners(self):
+        print('Winners of lottery: ')
+        for winner in self.winners:
+            print(winner)
+        print('Congratulations for winners!')
 
 
-def load_lottery(file_object):
-    x = json.load(file_object)
-    yield x
-    # for z in x["prizes"]:
-    #     yield {"name": x["name"], **z}
+class File:
+
+    file_path: str
+
+    def __init__(self, file_path):
+        self.file_path = file_path
+
+    @staticmethod
+    def load_lottery(file_object):
+        x = json.load(file_object)
+        yield x
+
+    @property
+    def file_extension(self) -> str:
+        return Path(self.file_path).suffix[1:]
+
+    def read_file(self, opener, adapter):
+        opener = self.OPENERS[opener]
+        with open(self.file_path) as data_file:
+            for x in opener(data_file):
+                yield adapter(x)
+
+    OPENERS = {
+        "participant_csv": csv.DictReader,
+        "participant_json": json.load,
+        "prize_json": load_lottery,
+    }
+
+    @staticmethod
+    def get_first_file_in_path(path):
+        return next(Path(f"{path}/").iterdir())
 
 
-OPENERS = {
-    "participant_csv": csv.DictReader,
-    "participant_json": json.load,
-    "prize_json": load_lottery,
-}
-
-
-def adapter_short(x):
-    return Prizes(name=x["name"], prizes=[Prize(**z) for z in x["prizes"]])
-
-
-def prizes_factory(x):  # todo move to prizes
-    prizes = []
-    for z in x["prizes"]:
-        prizes.append(Prize(**z))
-    return Prizes(name=x["name"], prizes=prizes)
-
-
-def read_file(file_path, file_type, adapter):
-    opener = OPENERS[file_type]
-    with open(file_path) as data_file:
-        for x in opener(data_file):
-            yield adapter(x)
-
-
-def participants_factory(row):  # TODO move it to participants
-    idk = int(row.get('id'))
-    first_name = row.get('first_name')
-    last_name = row.get('last_name')
-    weight = int(row.get('weight') or 1)
-    return Participant(idk, first_name, last_name, weight)
-
-
-def get_extension(file):
-    return Path(file).suffix[1:]
-
-
-def get_first_file_in_path(path):
-    return next(Path(f"{path}/").iterdir())
+class ResultsWriter:
+    def __init__(self):
+        pass
+    # create object of that file
+    # save lottery results
+    # method for displaying
 
 
 def validate_file(ctx, param, value):
@@ -152,7 +153,7 @@ def validate_rewards(ctx, param, value):
         return value
 
     try:
-        return get_first_file_in_path('data/lottery_templates')
+        return File.get_first_file_in_path('data/lottery_templates')
     except ValueError:
         raise click.BadParameter("-- File doesn't exist --")
 
@@ -165,23 +166,22 @@ def validate_rewards(ctx, param, value):
               type=click.UNPROCESSED, callback=validate_rewards)
 @click.option('--results', help='Provide filename to save results')
 def lottery(file, filetype, rewards, results):
-    filetype = filetype or get_extension(file)
-    rows = read_file(file, 'participant_' + filetype, participants_factory)
+    participant_file = File(file)
+    participant_filetype = filetype or participant_file.file_extension
+    rows = participant_file.read_file('participant_' + participant_filetype, Participant.factory)
     participants = list(rows)
 
-    prizes = read_file(rewards, 'prize_json', prizes_factory)
-    prizes = list(prizes)
-    pass
+    prize_file = File(rewards)
+    prizes_definition = next(prize_file.read_file('prize_' + prize_file.file_extension, Prizes.factory))
 
-    # winners = get_winners(participants, rewards)
+    #    prizes_definition = next(read_file(rewards, 'prize_json', Prizes.factory))
 
-    # lottery_data = Lottery(participants=participants, prizes=prizes, winners=winners) TODO probably not needed due to all functions are within this class
-    # lottery_json = Lottery.to_json(lottery_data)
-    # print(lottery_json)
-    # winners_with_prizes = get_winners_with_prizes(winners, rewards)
+    lottery_data = Lottery(participants=participants, prizes=prizes_definition)
 
-    # if results is None: # TODO move this to separate classes
-    #     winners_with_prizes.print_winners()
+    lottery_data.get_winners_with_prizes()
+
+    if results is None:  # TODO move this to separate classes
+        lottery_data.print_winners()
     # else:
     #     with open(results, 'w') as f:
     #         f.write(Winners.to_json(winners_with_prizes))
