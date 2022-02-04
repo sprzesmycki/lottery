@@ -102,7 +102,6 @@ class Lottery:
 
 
 class File:
-
     file_path: str
 
     def __init__(self, file_path):
@@ -118,20 +117,21 @@ class File:
         return Path(self.file_path).suffix[1:]
 
     def read_file(self, opener, adapter):
-        opener = self.OPENERS[opener]
+        opener = OPENERS[opener]
         with open(self.file_path) as data_file:
             for x in opener(data_file):
                 yield adapter(x)
 
-    OPENERS = {
-        "participant_csv": csv.DictReader,
-        "participant_json": json.load,
-        "prize_json": load_lottery,
-    }
-
     @staticmethod
     def get_first_file_in_path(path):
         return next(Path(f"{path}/").iterdir())
+
+
+OPENERS = {
+    "participant_csv": csv.DictReader,
+    "participant_json": json.load,
+    "prize_json": File.load_lottery,
+}
 
 
 class ResultsWriter:
