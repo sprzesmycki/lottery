@@ -15,8 +15,9 @@ class Participant:
     first_name: str
     last_name: str
     weight: int
+    OPENER_PREFIX: str = 'participant_'
 
-    def reduce_win_change(self):
+    def reduce_win_chance(self):
         self.weight = max(
             self.weight - 1,
             0
@@ -36,7 +37,7 @@ class Participant:
 class Prize:
     id: int
     name: str
-    amount: 1
+    amount: int = 1
 
 
 @dataclass_json
@@ -44,6 +45,7 @@ class Prize:
 class Prizes:
     name: str
     prizes: list[Prize]
+    OPENER_PREFIX: str = 'prize_'
 
     @property
     def total_count(self) -> int:
@@ -91,14 +93,15 @@ class Lottery:
     def get_winner(self):
         list_of_weights = list(map(attrgetter('weight'), self.participants))
         winner = random.choices(self.participants, weights=list_of_weights, k=1)[0]
-        winner.reduce_win_change()
+        winner.reduce_win_chance()
         return winner
 
-    def print_winners(self):
-        print('Winners of lottery: ')
+    def get_lottery_results(self):
+        results = 'Winners of lottery:\n'
         for winner in self.winners:
-            print(winner)
-        print('Congratulations for winners!')
+            results += str(winner) + '\n'
+        results += 'Congratulations for winners!'
+        return results
 
 
 class File:
@@ -116,11 +119,12 @@ class File:
     def file_extension(self) -> str:
         return Path(self.file_path).suffix[1:]
 
-    def read_file(self, opener, adapter):
-        opener = OPENERS[opener]
+    def read_file(self, adapter_class, file_type=None):
+        file_type = file_type or self.file_extension
+        opener = OPENERS[adapter_class.OPENER_PREFIX + file_type]
         with open(self.file_path) as data_file:
             for x in opener(data_file):
-                yield adapter(x)
+                yield adapter_class.factory(x)
 
     @staticmethod
     def get_first_file_in_path(path):
@@ -167,21 +171,18 @@ def validate_rewards(ctx, param, value):
 @click.option('--results', help='Provide filename to save results')
 def lottery(file, filetype, rewards, results):
     participant_file = File(file)
-    participant_filetype = filetype or participant_file.file_extension
-    rows = participant_file.read_file('participant_' + participant_filetype, Participant.factory)
+    rows = participant_file.read_file(Participant, filetype)
     participants = list(rows)
 
     prize_file = File(rewards)
-    prizes_definition = next(prize_file.read_file('prize_' + prize_file.file_extension, Prizes.factory))
-
-    #    prizes_definition = next(read_file(rewards, 'prize_json', Prizes.factory))
+    prizes_definition = next(prize_file.read_file(Prizes))
 
     lottery_data = Lottery(participants=participants, prizes=prizes_definition)
 
     lottery_data.get_winners_with_prizes()
 
     if results is None:  # TODO move this to separate classes
-        lottery_data.print_winners()
+        lottery_data.get_lottery_results()
     # else:
     #     with open(results, 'w') as f:
     #         f.write(Winners.to_json(winners_with_prizes))
