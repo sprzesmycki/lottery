@@ -5,6 +5,7 @@ import random
 from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 from operator import attrgetter
+from typing import Generator
 
 import click
 
@@ -24,7 +25,7 @@ class Participant:
         )
 
     @staticmethod
-    def factory(row):
+    def factory(row) -> "Participant":
         idk = int(row.get('id'))
         first_name = row.get('first_name')
         last_name = row.get('last_name')
@@ -56,7 +57,7 @@ class Prizes:
             )
         )
 
-    def __iter__(self):
+    def __iter__(self) -> Generator[Prize, None, None]:
         for prize in self.prizes:
             for _ in range(prize.amount):
                 yield prize
@@ -96,13 +97,6 @@ class Lottery:
         winner.reduce_win_chance()
         return winner
 
-    def get_lottery_results(self):
-        results = 'Winners of lottery:\n'
-        for winner in self.winners:
-            results += str(winner) + '\n'
-        results += 'Congratulations for winners!'
-        return results
-
 
 class File:
     file_path: str
@@ -139,11 +133,27 @@ OPENERS = {
 
 
 class ResultsWriter:
-    def __init__(self):
-        pass
-    # create object of that file
-    # save lottery results
-    # method for displaying
+    lottery: Lottery
+
+    def __init__(self, lottery: Lottery):
+        self.lottery = lottery
+
+    def display_results_in_console(self):
+        results = 'Winners of lottery:\n'
+        for winner in self.lottery.winners:
+            results += str(winner) + '\n'
+        results += 'Congratulations for winners!'
+        print(results)
+
+    def save_output_to_file(self, output):
+        with open(output, 'w') as f:
+            json.dump(self.lottery.winners, f)
+
+    def dump(self, output):
+        if output:
+            self.save_output_to_file(output)
+        else:
+            self.display_results_in_console()
 
 
 def validate_file(ctx, param, value):
@@ -158,7 +168,7 @@ def validate_rewards(ctx, param, value):
 
     try:
         return File.get_first_file_in_path('data/lottery_templates')
-    except ValueError:
+    except FileNotFoundError:
         raise click.BadParameter("-- File doesn't exist --")
 
 
@@ -169,7 +179,7 @@ def validate_rewards(ctx, param, value):
 @click.option('--rewards', help='Provide path for file with rewards',
               type=click.UNPROCESSED, callback=validate_rewards)
 @click.option('--results', help='Provide filename to save results')
-def lottery(file, filetype, rewards, results):
+def main(file, filetype, rewards, results):  # pragma: no cover
     participant_file = File(file)
     rows = participant_file.read_file(Participant, filetype)
     participants = list(rows)
@@ -178,15 +188,13 @@ def lottery(file, filetype, rewards, results):
     prizes_definition = next(prize_file.read_file(Prizes))
 
     lottery_data = Lottery(participants=participants, prizes=prizes_definition)
-
     lottery_data.get_winners_with_prizes()
 
-    if results is None:  # TODO move this to separate classes
-        lottery_data.get_lottery_results()
-    # else:
-    #     with open(results, 'w') as f:
-    #         f.write(Winners.to_json(winners_with_prizes))
+    results_writer = ResultsWriter(lottery_data)
+    results_writer.dump(results)
 
 
-if __name__ == '__main__':
-    lottery()
+if __name__ == '__main__':  # pragma: no cover
+    main()
+    # dodac typy returnow do metod
+    # modul io stringio

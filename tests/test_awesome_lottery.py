@@ -1,9 +1,12 @@
 import copy
+import io
+import pathlib
 
 import pytest
 
 from awesome_lottery import __version__
 from awesome_lottery import main
+from unittest.mock import patch, mock_open
 
 
 def test_version():
@@ -75,14 +78,6 @@ def winners(participants, prizes):
     return winners
 
 
-def test_printing_winners(participants, prizes, winners):
-    lottery_data = main.Lottery(participants=participants, prizes=prizes, winners=winners)
-    assert lottery_data.get_lottery_results() == 'Winners of lottery:' \
-                                                 '\n-> Seba Prze won WE2' \
-                                                 '\n-> Seb Prz won WE' \
-                                                 '\nCongratulations for winners!'
-
-
 def test_reading_file_extension():
     file = main.File('what_a_path.json')
     assert file.file_extension == 'json'
@@ -91,3 +86,70 @@ def test_reading_file_extension():
     file = main.File('what_a_path.exe')
     assert file.file_extension == 'exe'
 
+
+def test_file():
+    mockInput = io.StringIO('{"name": "test"}')
+
+    lottery = main.File.load_lottery(mockInput)
+    assert next(lottery) == {"name": "test"}
+    with pytest.raises(StopIteration):
+        next(lottery)
+
+
+def test_read_json_participant_file():
+    path = get_test_file_path('participant.json')
+    file = main.File(path)
+    rows = file.read_file(main.Participant)
+    assert next(rows) == main.Participant(id=1, first_name='Tanny', last_name='Bransgrove', weight=1)
+    with pytest.raises(StopIteration):
+        next(rows)
+
+
+def test_read_csv_participant_file():
+    path = get_test_file_path('participant.csv')
+    file = main.File(path)
+    rows = file.read_file(main.Participant)
+    assert next(rows) == main.Participant(id=1, first_name='Tanny', last_name='Bransgrove', weight=1)
+    with pytest.raises(StopIteration):
+        next(rows)
+
+
+def test_read_json_rewards_file():
+    path = get_test_file_path('rewards.json')
+    file = main.File(path)
+    rows = file.read_file(main.Prizes)
+    assert next(rows) == main.Prizes(name='Item giveaway: 5 identical prizes',
+                                     prizes=[main.Prize(id=1, name='Annual Vim subscription', amount=5)],
+                                     OPENER_PREFIX='prize_')
+    with pytest.raises(StopIteration):
+        next(rows)
+
+
+def test_validate_file():
+    value = 'participant.csv'
+    assert main.validate_file('', '', value) == value
+
+
+def test_validate_file_exception():
+    with pytest.raises(Exception):
+        main.validate_file('', '', '')
+
+
+def test_validate_rewards():
+    value = 'participant.csv'
+    assert main.validate_rewards('', '', value) == value
+
+
+def test_validate_rewards_exception():
+    with pytest.raises(main.click.BadParameter):
+        main.validate_rewards('', '', '')
+
+
+def get_test_file_path(file_name: str) -> str:
+    return str(pathlib.Path(__file__).parent / 'test_resources' / file_name)
+
+
+def test_result_writer_to_file(participants, prizes, winners):
+    lottery_data = main.Lottery(participants=participants, prizes=prizes, winners=winners)
+    print(lottery_data)
+    main.ResultsWriter(lottery=lottery_data).dump('results.json')
