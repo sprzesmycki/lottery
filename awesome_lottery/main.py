@@ -6,8 +6,12 @@ from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 from operator import attrgetter
 from typing import Generator
+from io import StringIO
 
+import sys
 import click
+
+temp_out = StringIO()
 
 
 @dataclass
@@ -25,7 +29,7 @@ class Participant:
         )
 
     @staticmethod
-    def factory(row) -> "Participant":
+    def factory(row: dict) -> "Participant":
         idk = int(row.get('id'))
         first_name = row.get('first_name')
         last_name = row.get('last_name')
@@ -63,7 +67,7 @@ class Prizes:
                 yield prize
 
     @staticmethod
-    def factory(x):
+    def factory(x: dict) -> "Prizes":
         prizes = []
         for z in x["prizes"]:
             prizes.append(Prize(**z))
@@ -75,7 +79,7 @@ class Winner:
     winner: Participant
     prize: Prize
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'-> {self.winner.first_name} {self.winner.last_name} won {self.prize.name}'
 
 
@@ -86,12 +90,12 @@ class Lottery:
     prizes: Prizes
     winners: list[Winner] = field(default_factory=list)
 
-    def get_winners_with_prizes(self):
+    def get_winners_with_prizes(self) -> list[Winner]:
         for prize in self.prizes:
             self.winners.append(Winner(self.get_winner(), prize))
         return self.winners
 
-    def get_winner(self):
+    def get_winner(self) -> Participant:
         list_of_weights = list(map(attrgetter('weight'), self.participants))
         winner = random.choices(self.participants, weights=list_of_weights, k=1)[0]
         winner.reduce_win_chance()
@@ -101,11 +105,11 @@ class Lottery:
 class File:
     file_path: str
 
-    def __init__(self, file_path):
+    def __init__(self, file_path: str):
         self.file_path = file_path
 
     @staticmethod
-    def load_lottery(file_object):
+    def load_lottery(file_object) -> Generator:
         x = json.load(file_object)
         yield x
 
@@ -113,7 +117,7 @@ class File:
     def file_extension(self) -> str:
         return Path(self.file_path).suffix[1:]
 
-    def read_file(self, adapter_class, file_type=None):
+    def read_file(self, adapter_class, file_type: str = None) -> Generator:
         file_type = file_type or self.file_extension
         opener = OPENERS[adapter_class.OPENER_PREFIX + file_type]
         with open(self.file_path) as data_file:
@@ -121,8 +125,8 @@ class File:
                 yield adapter_class.factory(x)
 
     @staticmethod
-    def get_first_file_in_path(path):
-        return next(Path(f"{path}/").iterdir())
+    def get_first_file_in_path(path: str) -> str:
+        return str(next(Path(f"{path}/").iterdir()))
 
 
 OPENERS = {
@@ -143,26 +147,29 @@ class ResultsWriter:
         for winner in self.lottery.winners:
             results += str(winner) + '\n'
         results += 'Congratulations for winners!'
-        print(results)
+        sys.stdout = temp_out
+        temp_out.write(results)
+        sys.stdout = sys.__stdout__
+        print(temp_out.getvalue())
 
-    def save_output_to_file(self, output):
+    def save_output_to_file(self, output: str):
         with open(output, 'w') as f:
             json.dump(self.lottery.winners, f)
 
-    def dump(self, output):
+    def dump(self, output: str):
         if output:
             self.save_output_to_file(output)
         else:
             self.display_results_in_console()
 
 
-def validate_file(ctx, param, value):
+def validate_file(ctx, param, value) -> str:
     if value:
         return value
     raise click.BadParameter('-- File not specified --')
 
 
-def validate_rewards(ctx, param, value):
+def validate_rewards(ctx, param, value) -> str:
     if value:
         return value
 
@@ -196,5 +203,3 @@ def main(file, filetype, rewards, results):  # pragma: no cover
 
 if __name__ == '__main__':  # pragma: no cover
     main()
-    # dodac typy returnow do metod
-    # modul io stringio

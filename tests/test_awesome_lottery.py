@@ -6,7 +6,6 @@ import pytest
 
 from awesome_lottery import __version__
 from awesome_lottery import main
-from unittest.mock import patch, mock_open
 
 
 def test_version():
@@ -149,7 +148,13 @@ def get_test_file_path(file_name: str) -> str:
     return str(pathlib.Path(__file__).parent / 'test_resources' / file_name)
 
 
-def test_result_writer_to_file(participants, prizes, winners):
+def test_result_writer_to_file(participants, prizes, winners):  # todo fails
     lottery_data = main.Lottery(participants=participants, prizes=prizes, winners=winners)
-    print(lottery_data)
     main.ResultsWriter(lottery=lottery_data).dump('results.json')
+
+
+def test_result_writer_to_console(participants, prizes, winners):
+    lottery_data = main.Lottery(participants=participants, prizes=prizes, winners=winners)
+    main.ResultsWriter(lottery=lottery_data).dump(None)
+    console_output = main.temp_out.getvalue()
+    assert console_output == '''Winners of lottery:\n-> Seba Prze won WE2\n-> Seb Prz won WE\nCongratulations for winners!'''
