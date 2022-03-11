@@ -5,15 +5,14 @@ import random
 from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 from operator import attrgetter
-from typing import Generator
+from typing import Generator, Optional, TextIO
 from io import StringIO
 
 import sys
 import click
 
-temp_out = StringIO()
 
-
+@dataclass_json
 @dataclass
 class Participant:
     id: int
@@ -74,6 +73,7 @@ class Prizes:
         return Prizes(name=x["name"], prizes=prizes)
 
 
+@dataclass_json
 @dataclass
 class Winner:
     winner: Participant
@@ -138,23 +138,25 @@ OPENERS = {
 
 class ResultsWriter:
     lottery: Lottery
+    output: TextIO
 
-    def __init__(self, lottery: Lottery):
+    def __init__(self, lottery: Lottery, output: Optional[StringIO] = None):
         self.lottery = lottery
+        if output:
+            self.output = output
+        else:
+            self.output = sys.stdout
 
     def display_results_in_console(self):
         results = 'Winners of lottery:\n'
         for winner in self.lottery.winners:
             results += str(winner) + '\n'
         results += 'Congratulations for winners!'
-        sys.stdout = temp_out
-        temp_out.write(results)
-        sys.stdout = sys.__stdout__
-        print(temp_out.getvalue())
+        print(results, file=self.output)
 
     def save_output_to_file(self, output: str):
         with open(output, 'w') as f:
-            json.dump(self.lottery.winners, f)
+            f.write(Winner.schema().dumps(self.lottery.winners, many=True))
 
     def dump(self, output: str):
         if output:

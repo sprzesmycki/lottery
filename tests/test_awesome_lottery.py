@@ -154,7 +154,8 @@ def test_result_writer_to_file(participants, prizes, winners):  # todo fails
 
 
 def test_result_writer_to_console(participants, prizes, winners):
+    temp_out = io.StringIO()
     lottery_data = main.Lottery(participants=participants, prizes=prizes, winners=winners)
-    main.ResultsWriter(lottery=lottery_data).dump(None)
-    console_output = main.temp_out.getvalue()
-    assert console_output == '''Winners of lottery:\n-> Seba Prze won WE2\n-> Seb Prz won WE\nCongratulations for winners!'''
+    main.ResultsWriter(lottery=lottery_data, output=temp_out).dump(None)
+    console_output = temp_out.getvalue()
+    assert console_output == '''Winners of lottery:\n-> Seba Prze won WE2\n-> Seb Prz won WE\nCongratulations for winners!\n'''
