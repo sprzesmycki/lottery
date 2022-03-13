@@ -6,6 +6,9 @@ import pytest
 
 from awesome_lottery import __version__
 from awesome_lottery import main
+from awesome_lottery.file import File
+from awesome_lottery.lottery import Prize, Prizes, Winner, Participant, Lottery
+from awesome_lottery.result_writter import ResultsWriter
 
 
 def test_version():
@@ -14,11 +17,11 @@ def test_version():
 
 @pytest.fixture
 def prizes():
-    prizes = main.Prizes(
+    prizes = Prizes(
         name='Hey',
         prizes=[
-            main.Prize(id=1, name='WE'),
-            main.Prize(id=1, name='WE2', amount=2)
+            Prize(id=1, name='WE'),
+            Prize(id=1, name='WE2', amount=2)
         ]
     )
     return prizes
@@ -31,17 +34,17 @@ def test_prizes_total_count(prizes):
 def test_prizes_iter(prizes):
     prizes_list = list(prizes)
     assert prizes_list == [
-        main.Prize(id=1, name='WE'),
-        main.Prize(id=1, name='WE2', amount=2),
-        main.Prize(id=1, name='WE2', amount=2)
+        Prize(id=1, name='WE'),
+        Prize(id=1, name='WE2', amount=2),
+        Prize(id=1, name='WE2', amount=2)
     ]
 
 
 @pytest.fixture
 def participants():
     participants = [
-        main.Participant(id=1, first_name='Seb', last_name='Prz', weight=1),
-        main.Participant(id=2, first_name='Seba', last_name='Prze', weight=2)]
+        Participant(id=1, first_name='Seb', last_name='Prz', weight=1),
+        Participant(id=2, first_name='Seba', last_name='Prze', weight=2)]
     return participants
 
 
@@ -56,12 +59,12 @@ def test_participant_win_chance_reduction(participants):
 def test_winner_to_str(participants, prizes):
     participant = participants.pop()
     prize = prizes.prizes.pop()
-    winner = main.Winner(winner=participant, prize=prize)
+    winner = Winner(winner=participant, prize=prize)
     assert str(winner) == '-> Seba Prze won WE2'
 
 
 def test_getting_winners_with_prizes(participants, prizes):
-    lottery_data = main.Lottery(participants=participants, prizes=prizes)
+    lottery_data = Lottery(participants=participants, prizes=prizes)
     winners_with_prizes = lottery_data.get_winners_with_prizes()
     assert lottery_data.winners == winners_with_prizes
 
@@ -71,25 +74,25 @@ def winners(participants, prizes):
     participants = participants.copy()
     prizes = copy.deepcopy(prizes)
     winners = [
-        main.Winner(participants.pop(), prizes.prizes.pop()),
-        main.Winner(participants.pop(), prizes.prizes.pop()),
+        Winner(participants.pop(), prizes.prizes.pop()),
+        Winner(participants.pop(), prizes.prizes.pop()),
     ]
     return winners
 
 
 def test_reading_file_extension():
-    file = main.File('what_a_path.json')
+    file = File('what_a_path.json')
     assert file.file_extension == 'json'
-    file = main.File('isThisAgoodPath/what_a_path.csv')
+    file = File('isThisAgoodPath/what_a_path.csv')
     assert file.file_extension == 'csv'
-    file = main.File('what_a_path.exe')
+    file = File('what_a_path.exe')
     assert file.file_extension == 'exe'
 
 
 def test_file():
-    mockInput = io.StringIO('{"name": "test"}')
+    mock_input = io.StringIO('{"name": "test"}')
 
-    lottery = main.File.load_lottery(mockInput)
+    lottery = File.load_lottery(mock_input)
     assert next(lottery) == {"name": "test"}
     with pytest.raises(StopIteration):
         next(lottery)
@@ -97,28 +100,28 @@ def test_file():
 
 def test_read_json_participant_file():
     path = get_test_file_path('participant.json')
-    file = main.File(path)
-    rows = file.read_file(main.Participant)
-    assert next(rows) == main.Participant(id=1, first_name='Tanny', last_name='Bransgrove', weight=1)
+    file = File(path)
+    rows = file.read_file(Participant)
+    assert next(rows) == Participant(id=1, first_name='Tanny', last_name='Bransgrove', weight=1)
     with pytest.raises(StopIteration):
         next(rows)
 
 
 def test_read_csv_participant_file():
     path = get_test_file_path('participant.csv')
-    file = main.File(path)
-    rows = file.read_file(main.Participant)
-    assert next(rows) == main.Participant(id=1, first_name='Tanny', last_name='Bransgrove', weight=1)
+    file = File(path)
+    rows = file.read_file(Participant)
+    assert next(rows) == Participant(id=1, first_name='Tanny', last_name='Bransgrove', weight=1)
     with pytest.raises(StopIteration):
         next(rows)
 
 
 def test_read_json_rewards_file():
     path = get_test_file_path('rewards.json')
-    file = main.File(path)
-    rows = file.read_file(main.Prizes)
-    assert next(rows) == main.Prizes(name='Item giveaway: 5 identical prizes',
-                                     prizes=[main.Prize(id=1, name='Annual Vim subscription', amount=5)],
+    file = File(path)
+    rows = file.read_file(Prizes)
+    assert next(rows) == Prizes(name='Item giveaway: 5 identical prizes',
+                                     prizes=[Prize(id=1, name='Annual Vim subscription', amount=5)],
                                      OPENER_PREFIX='prize_')
     with pytest.raises(StopIteration):
         next(rows)
@@ -148,14 +151,14 @@ def get_test_file_path(file_name: str) -> str:
     return str(pathlib.Path(__file__).parent / 'test_resources' / file_name)
 
 
-def test_result_writer_to_file(participants, prizes, winners):  # todo fails
-    lottery_data = main.Lottery(participants=participants, prizes=prizes, winners=winners)
-    main.ResultsWriter(lottery=lottery_data).dump('results.json')
+def test_result_writer_to_file(participants, prizes, winners):
+    lottery_data = Lottery(participants=participants, prizes=prizes, winners=winners)
+    ResultsWriter(lottery=lottery_data).dump('results.json')
 
 
 def test_result_writer_to_console(participants, prizes, winners):
     temp_out = io.StringIO()
-    lottery_data = main.Lottery(participants=participants, prizes=prizes, winners=winners)
-    main.ResultsWriter(lottery=lottery_data, output=temp_out).dump(None)
+    lottery_data = Lottery(participants=participants, prizes=prizes, winners=winners)
+    ResultsWriter(lottery=lottery_data, output=temp_out).dump(None)
     console_output = temp_out.getvalue()
     assert console_output == '''Winners of lottery:\n-> Seba Prze won WE2\n-> Seb Prz won WE\nCongratulations for winners!\n'''
