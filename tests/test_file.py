@@ -4,7 +4,7 @@ import pathlib
 import pytest
 
 from awesome_lottery.file import File
-from awesome_lottery.lottery import Lottery, Participant, Prizes, Prize
+from awesome_lottery.lottery import Participant, Prizes, Prize
 
 
 def test_reading_file_extension():

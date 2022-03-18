@@ -1,15 +1,7 @@
-import copy
-import io
-import pathlib
-
 import pytest
 
 from awesome_lottery import __version__
 from awesome_lottery import main
-from awesome_lottery.file import File
-from awesome_lottery.lottery import Participant
-
-from awesome_lottery.result_writter import ResultsWriter
 
 
 def test_version():
